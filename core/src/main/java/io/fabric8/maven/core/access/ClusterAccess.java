@@ -25,6 +25,8 @@ import io.fabric8.maven.docker.util.Logger;
 import io.fabric8.openshift.client.DefaultOpenShiftClient;
 import io.fabric8.openshift.client.OpenShiftAPIGroups;
 import io.fabric8.openshift.client.OpenShiftClient;
+import io.fabric8.openshift.client.OpenShiftConfig;
+import io.fabric8.openshift.client.OpenShiftConfigBuilder;
 import io.fabric8.utils.Strings;
 
 import static io.fabric8.kubernetes.api.KubernetesHelper.DEFAULT_NAMESPACE;
@@ -34,6 +36,8 @@ import static io.fabric8.kubernetes.api.KubernetesHelper.DEFAULT_NAMESPACE;
  * @since 17/07/16
  */
 public class ClusterAccess {
+	
+	public static final Long OPENSHIFT_BUILD_TIMEOUT = 30 * 60 * 1000L;
 
     private String namespace;
 
@@ -61,7 +65,7 @@ public class ClusterAccess {
     }
 
     public OpenShiftClient createOpenShiftClient() {
-        return new DefaultOpenShiftClient(createDefaultConfig());
+        return new DefaultOpenShiftClient(createDefaultOpenShiftConfig());
     }
 
     // ============================================================================
@@ -69,6 +73,12 @@ public class ClusterAccess {
     private Config createDefaultConfig() {
         return new ConfigBuilder().withNamespace(getNamespace()).build();
     }
+    
+    private OpenShiftConfig createDefaultOpenShiftConfig() {
+    	OpenShiftConfig openShiftConfig= new OpenShiftConfigBuilder().withBuildTimeout(OPENSHIFT_BUILD_TIMEOUT).withNamespace(getNamespace()).build();
+    	return openShiftConfig;
+    }
+    
     public String getNamespace() {
         return namespace;
     }
