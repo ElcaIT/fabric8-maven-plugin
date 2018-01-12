@@ -57,6 +57,8 @@ public interface BuildService {
         private OpenShiftBuildStrategy openshiftBuildStrategy;
 
         private String s2iBuildNameSuffix;
+        
+        private String pushSecret;
 
         private Task<KubernetesListBuilder> enricherTask;
 
@@ -105,7 +107,15 @@ public interface BuildService {
             }
         }
 
-        public static class Builder {
+        public String getPushSecret() {
+			return pushSecret;
+		}
+
+		public void setPushSecret(String pushSecret) {
+			this.pushSecret = pushSecret;
+		}
+
+		public static class Builder {
             private BuildServiceConfig config;
 
             public Builder() {
@@ -159,6 +169,11 @@ public interface BuildService {
             public BuildServiceConfig build() {
                 return config;
             }
+
+			public Builder pushSecret(String pushSecret) {
+                config.pushSecret = pushSecret;
+                return this;
+			}
 
         }
 

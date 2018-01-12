@@ -180,7 +180,7 @@ public class OpenshiftBuildService implements BuildService {
                 .withKind("ImageStreamTag")
                 .withName(outputImageStreamTag)
                 .endTo()
-                .withNewPushSecret().withName("artifactory").endPushSecret()
+                .withNewPushSecret().withName(config.getPushSecret()).endPushSecret()
                 .build();
 
         // Fetch exsting build config

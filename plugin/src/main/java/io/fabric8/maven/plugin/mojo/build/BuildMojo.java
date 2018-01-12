@@ -132,6 +132,13 @@ public class BuildMojo extends io.fabric8.maven.docker.BuildMojo {
     private String s2iBuildNameSuffix;
 
     /**
+     * The necessary openshift secret that enable push on third party repository at the end of the build process
+     */
+    @Parameter(property = "fabric8.pushSecret", defaultValue = "")
+    private String pushSecret;
+
+    
+    /**
      * Should we use the project's compile-time classpath to scan for additional enrichers/generators?
      */
     @Parameter(property = "fabric8.useProjectClasspath", defaultValue = "false")
@@ -253,6 +260,7 @@ public class BuildMojo extends io.fabric8.maven.docker.BuildMojo {
                 .buildRecreateMode(BuildRecreateMode.fromParameter(buildRecreate))
                 .openshiftBuildStrategy(buildStrategy)
                 .s2iBuildNameSuffix(s2iBuildNameSuffix)
+                .pushSecret(pushSecret)
                 .buildDirectory(project.getBuild().getDirectory())
                 .attacher(new BuildService.BuildServiceConfig.Attacher() {
                     @Override
