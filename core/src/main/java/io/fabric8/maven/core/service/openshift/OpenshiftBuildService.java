@@ -97,7 +97,7 @@ public class OpenshiftBuildService implements BuildService {
 
             // Check for buildconfig / imagestream and create them if necessary
             String buildName = updateOrCreateBuildConfig(config, client, builder, imageConfig);
-            checkOrCreateImageStream(config, client, builder, getImageStreamName(imageName));
+            checkOrCreateImageStream(config, client, builder, getImageStreamName(imageName),imageConfig);
             applyResourceObjects(config, client, builder);
 
             // Start the actual build
@@ -179,7 +179,9 @@ public class OpenshiftBuildService implements BuildService {
         BuildOutput buildOutput = new BuildOutputBuilder().withNewTo()
                 .withKind("ImageStreamTag")
                 .withName(outputImageStreamTag)
-                .endTo().build();
+                .endTo()
+                .withNewPushSecret().withName("artifactory").endPushSecret()
+                .build();
 
         // Fetch exsting build config
         BuildConfig buildConfig = client.buildConfigs().withName(buildName).get();
@@ -282,18 +284,23 @@ public class OpenshiftBuildService implements BuildService {
         }
     }
 
-    private void checkOrCreateImageStream(BuildServiceConfig config, OpenShiftClient client, KubernetesListBuilder builder, String imageStreamName) {
+    private void checkOrCreateImageStream(BuildServiceConfig config, OpenShiftClient client, KubernetesListBuilder builder, String imageStreamName, ImageConfiguration imageConfiguration) {
         boolean hasImageStream = client.imageStreams().withName(imageStreamName).get() != null;
         if (hasImageStream && config.getBuildRecreateMode().isImageStream()) {
             client.imageStreams().withName(imageStreamName).delete();
             hasImageStream = false;
         }
         if (!hasImageStream) {
+        	
+            ImageName imageName = new ImageName(imageConfiguration.getName());
+        	
             log.info("Creating ImageStream %s", imageStreamName);
             builder.addNewImageStreamItem()
                     .withNewMetadata()
                     .withName(imageStreamName)
                     .endMetadata()
+                    .withNewSpec().withDockerImageRepository(imageConfiguration.getRegistry()+"/"+imageName.getNameWithoutTag())
+                    .endSpec()
                     .endImageStreamItem();
         } else {
             log.info("Adding to ImageStream %s", imageStreamName);
