@@ -34,6 +34,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -503,6 +504,19 @@ public class KubernetesResourceUtil {
         return answer;
     }
 
+    public static boolean removeEnvVar(List<EnvVar> envVarList, String name) {
+        boolean removed = false;
+        for (Iterator<EnvVar> it = envVarList.iterator(); it.hasNext(); ) {
+            EnvVar envVar = it.next();
+            String envVarName = envVar.getName();
+            if (io.fabric8.utils.Objects.equal(name, envVarName)) {
+                it.remove();
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
     public static void validateKubernetesMasterUrl(URL masterUrl) throws MojoExecutionException {
         if (masterUrl == null || Strings.isNullOrBlank(masterUrl.toString())) {
             throw new MojoExecutionException("Cannot find Kubernetes master URL. Have you started a cluster via `mvn fabric8:cluster-start` or connected to a remote cluster via `kubectl`?");
@@ -721,7 +735,7 @@ public class KubernetesResourceUtil {
     }
 
     public static void mergePodSpec(PodSpecBuilder builder, PodSpec defaultPodSpec, String defaultName) {
-        List<Container> containers = builder.getContainers();
+        List<Container> containers = builder.buildContainers();
         List<Container> defaultContainers = defaultPodSpec.getContainers();
         int size = defaultContainers.size();
         if (size > 0) {

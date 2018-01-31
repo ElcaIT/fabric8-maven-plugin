@@ -31,9 +31,6 @@
 
   <name>Fabric8 Maven :: Build</name>
 
-  <prerequisites>
-    <maven>3.0.3</maven>
-  </prerequisites>
 
   <modules>
     <module>parent</module>
@@ -52,6 +49,7 @@
     <module>watcher/api</module>
     <module>watcher/standard</module>
     <module>it</module>
+    <module>rt</module>
   </modules>
 
   <scm>

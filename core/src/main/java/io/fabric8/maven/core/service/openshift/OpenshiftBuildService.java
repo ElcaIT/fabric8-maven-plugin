@@ -23,18 +23,17 @@ import java.io.PrintWriter;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.fabric8.kubernetes.api.KubernetesHelper;
 import io.fabric8.kubernetes.api.builds.Builds;
-import io.fabric8.kubernetes.api.model.KubernetesList;
-import io.fabric8.kubernetes.api.model.KubernetesListBuilder;
-import io.fabric8.kubernetes.api.model.ObjectReference;
-import io.fabric8.kubernetes.api.model.Status;
+import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import io.fabric8.kubernetes.client.Watch;
 import io.fabric8.kubernetes.client.Watcher;
 import io.fabric8.kubernetes.client.dsl.LogWatch;
+import io.fabric8.maven.core.access.ClusterAccess;
 import io.fabric8.maven.core.config.OpenShiftBuildStrategy;
 import io.fabric8.maven.core.service.BuildService;
 import io.fabric8.maven.core.service.Fabric8ServiceException;
@@ -72,6 +71,13 @@ public class OpenshiftBuildService implements BuildService {
     private final Logger log;
     private ServiceHub dockerServiceHub;
     private BuildServiceConfig config;
+    private ClusterAccess clusterAccess;
+
+    /*
+     * Retry parameter
+     */
+    private static final int RESOURCE_CREATION_RETRIES = 5;
+    private static final int RESOURCE_CREATION_RETRY_TIMEOUT_IN_MILLIS = 1000;
 
     public OpenshiftBuildService(OpenShiftClient client, Logger log, ServiceHub dockerServiceHub, BuildServiceConfig config) {
         Objects.requireNonNull(client, "client");
@@ -83,6 +89,7 @@ public class OpenshiftBuildService implements BuildService {
         this.log = log;
         this.dockerServiceHub = dockerServiceHub;
         this.config = config;
+        this.clusterAccess = new ClusterAccess(null);
     }
 
     @Override
@@ -310,14 +317,44 @@ public class OpenshiftBuildService implements BuildService {
     }
 
     private void applyResourceObjects(BuildServiceConfig config, OpenShiftClient client, KubernetesListBuilder builder) throws Exception {
-        if (config.getEnricherTask() != null) {
-            config.getEnricherTask().execute(builder);
-        }
+        // Adding a workaround to handle intermittent Socket closed errors while
+        // building on OpenShift. See https://github.com/fabric8io/fabric8-maven-plugin/issues/1133
+        // for more details.
+        int nTries = 0;
+        boolean bResourcesCreated = false;
+        Exception buildException = null;
+        do {
+            try {
+                if (config.getEnricherTask() != null) {
+                    config.getEnricherTask().execute(builder);
+                }
+                if (builder.hasItems()) {
+                    KubernetesList k8sList = builder.build();
+                    client.lists().create(k8sList);
+                }
+                // If we are here, it means resources got created successfully.
+                bResourcesCreated = true;
+            } catch (Exception aException) {
+                // Handling the exception like this because we get a generic Exception from the above block.
+                // Retry only when Exception is of socket closed message.
+                if(aException.getMessage() != null && aException.getMessage().contains("Socket closed")) {
+                    log.warn("Problem encountered while applying resource objects, retrying..");
+                    buildException = aException;
+                    nTries++;
+                    Thread.sleep(RESOURCE_CREATION_RETRY_TIMEOUT_IN_MILLIS);
+                    // Make a connection to cluster again.
+                    client = clusterAccess.createDefaultClient(log);
+                }
+                else {
+                    // The exception caught is not related to closed socket, so let's break
+                    // and simply throw as it is.
+                    throw new MojoExecutionException(aException.getMessage());
+                }
+            }
+        } while (nTries < RESOURCE_CREATION_RETRIES && !bResourcesCreated);
 
-        if (builder.hasItems()) {
-            KubernetesList k8sList = builder.build();
-            client.lists().create(k8sList);
-        }
+        if (!bResourcesCreated)
+            throw new MojoExecutionException(buildException.getMessage());
     }
 
     private Build startBuild(OpenShiftClient client, File dockerTar, String buildName) {
@@ -339,13 +376,15 @@ public class OpenshiftBuildService implements BuildService {
         }
     }
 
-    private void waitForOpenShiftBuildToComplete(OpenShiftClient client, Build build) throws MojoExecutionException {
+    private void waitForOpenShiftBuildToComplete(OpenShiftClient client, Build build) throws MojoExecutionException, InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch logTerminateLatch = new CountDownLatch(1);
         final String buildName = KubernetesHelper.getName(build);
 
         final AtomicReference<Build> buildHolder = new AtomicReference<>();
 
+        // Don't query for logs directly, Watch over the build pod:
+        waitUntilPodIsReady(buildName + "-build", 20, log);
         log.info("Waiting for build " + buildName + " to complete...");
         try (LogWatch logWatch = client.pods().withName(buildName + "-build").watchLog()) {
             KubernetesClientUtil.printLogsAsync(logWatch,
@@ -370,6 +409,35 @@ public class OpenshiftBuildService implements BuildService {
                 }
                 log.info("Build " + buildName + " " + status);
             }
+        }
+    }
+
+    /**
+     * A Simple utility function to watch over pod until it gets ready
+     *
+     * @param podName Name of the pod
+     * @param nAwaitTimeout Time in seconds upto which pod must be watched
+     * @param log Logger object
+     * @throws InterruptedException
+     */
+    private void waitUntilPodIsReady(String podName, int nAwaitTimeout, final Logger log) throws InterruptedException {
+        final CountDownLatch readyLatch = new CountDownLatch(1);
+        try (Watch watch = client.pods().withName(podName).watch(new Watcher<Pod>() {
+            @Override
+            public void eventReceived(Action action, Pod aPod) {
+                if(KubernetesHelper.isPodReady(aPod)) {
+                    readyLatch.countDown();
+                }
+            }
+
+            @Override
+            public void onClose(KubernetesClientException e) {
+                // Ignore
+            }
+        })) {
+            readyLatch.await(nAwaitTimeout, TimeUnit.SECONDS);
+        } catch (KubernetesClientException | InterruptedException e) {
+            log.error("Could not watch pod", e);
         }
     }
 

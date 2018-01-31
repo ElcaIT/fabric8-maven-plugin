@@ -1,3 +1,5 @@
+import io.fabric8.maven.it.Verify
+
 /*
  * Copyright 2016 Red Hat, Inc.
  *
@@ -14,10 +16,10 @@
  * permissions and limitations under the License.
  */
 
-package io.fabric8.maven.core.handler;
-/**
- * @author roland
- * @since 08/04/16
- */
-public class VolumeHandler {
+
+[ "k8s-template"  ].each {
+  Verify.verifyResourceDescriptors(
+          new File(basedir, sprintf("/target/classes/META-INF/fabric8/%s.yml",it)),
+          new File(basedir, sprintf("/expected/%s.yml",it)))
 }
+true
