@@ -182,7 +182,8 @@ public class OpenshiftBuildService implements BuildService {
                 .endTo()
                 .withNewPushSecret().withName(config.getPushSecret()).endPushSecret()
                 .build();
-
+        
+		
         // Fetch exsting build config
         BuildConfig buildConfig = client.buildConfigs().withName(buildName).get();
         if (buildConfig != null) {
@@ -270,6 +271,7 @@ public class OpenshiftBuildService implements BuildService {
             String fromNamespace = getMapValueWithDefault(fromExt, OpenShiftBuildStrategy.SourceStrategy.namespace, "ImageStreamTag".equals(fromKind) ? "openshift" : null);
 
             return new BuildStrategyBuilder()
+            		.withNewDockerStrategy().withNewPullSecret(config.getPullSecret()).endDockerStrategy()
                     .withType("Source")
                     .withNewSourceStrategy()
                     .withNewFrom()

@@ -137,6 +137,12 @@ public class BuildMojo extends io.fabric8.maven.docker.BuildMojo {
     @Parameter(property = "fabric8.pushSecret", defaultValue = "")
     private String pushSecret;
 
+    /**
+     * The necessary openshift secret that enable pull on third party repository at the beginning of the build process (typecally to if base image come from this thirdparty repository)
+     */
+    @Parameter(property = "fabric8.pullSecret", defaultValue = "")
+    private String pullSecret;
+
     
     /**
      * Should we use the project's compile-time classpath to scan for additional enrichers/generators?
@@ -261,6 +267,7 @@ public class BuildMojo extends io.fabric8.maven.docker.BuildMojo {
                 .openshiftBuildStrategy(buildStrategy)
                 .s2iBuildNameSuffix(s2iBuildNameSuffix)
                 .pushSecret(pushSecret)
+                .pullSecret(pullSecret)
                 .buildDirectory(project.getBuild().getDirectory())
                 .attacher(new BuildService.BuildServiceConfig.Attacher() {
                     @Override

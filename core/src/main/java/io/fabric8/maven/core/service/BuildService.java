@@ -59,6 +59,8 @@ public interface BuildService {
         private String s2iBuildNameSuffix;
         
         private String pushSecret;
+        
+        private String pullSecret;
 
         private Task<KubernetesListBuilder> enricherTask;
 
@@ -113,6 +115,14 @@ public interface BuildService {
 
 		public void setPushSecret(String pushSecret) {
 			this.pushSecret = pushSecret;
+		}
+		
+        public String getPullSecret() {
+			return pullSecret;
+		}
+
+		public void setPullSecret(String pullSecret) {
+			this.pullSecret = pullSecret;
 		}
 
 		public static class Builder {
@@ -171,6 +181,11 @@ public interface BuildService {
             }
 
 			public Builder pushSecret(String pushSecret) {
+                config.pushSecret = pushSecret;
+                return this;
+			}
+			
+			public Builder pullSecret(String pushSecret) {
                 config.pushSecret = pushSecret;
                 return this;
 			}
